@@ -1,0 +1,17 @@
+# .gitignore
+
+# Node modules
+node_modules/
+
+# clasp 設定ファイル (個人設定が含まれる場合がある)
+.clasp.json
+
+# 環境設定ファイル (もし使う場合)
+.env
+
+# OS固有ファイル
+.DS_Store
+Thumbs.db
+
+# その他、APIキーなど機密情報を含む可能性のあるファイル
+# 例: service_account_key.json
