@@ -1,0 +1,352 @@
+<style>
+  /* === 基本設定 === */
+  body {
+    font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+    /* 可読性の高いフォント */
+    padding: 20px;
+    background-color: #f8f9fa;
+    /* 明るいグレー背景 */
+    color: #343a40;
+    /* 基本テキスト色 (濃いグレー) */
+    margin: 0;
+    /* bodyのマージンをリセット */
+  }
+
+  /* 見出しスタイル */
+  h1,
+  h2 {
+    color: #343a40;
+    border-bottom: 2px solid #dee2e6;
+    /* 薄いグレー罫線 */
+    padding-bottom: 8px;
+    margin-top: 25px;
+    margin-bottom: 15px;
+    /* 見出し下のマージン */
+    font-weight: 600;
+  }
+
+  h1 {
+    margin-top: 0;
+    font-size: 1.8em;
+  }
+
+  h2 {
+    font-size: 1.4em;
+  }
+
+  /* ラベルとフォーム部品 */
+  label {
+    font-weight: bold;
+    margin-right: 5px;
+    color: #495057;
+  }
+
+  select,
+  input[type="text"] {
+    padding: 6px 8px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 0.95em;
+    vertical-align: middle;
+    /* 縦位置揃え */
+  }
+
+  select:focus,
+  input[type="text"]:focus {
+    border-color: #80bdff;
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+  }
+
+  /* === 各セクションのベーススタイル === */
+  #controls,
+  #messageArea,
+  #sleeve-section {
+    margin-bottom: 25px;
+    padding: 15px;
+    background-color: #ffffff;
+    /* 白背景 */
+    border: 1px solid #dee2e6;
+    /* 薄いグレー枠線 */
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  /* コントロールセクション */
+  #controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    /* 幅が足りなければ折り返す */
+    gap: 20px;
+    /* 要素間の隙間 */
+    background-color: #f1f3f5;
+    /* 少し色を変える */
+  }
+
+  /* === メッセージエリアのスタイル === */
+  #messageArea {
+    padding: 12px 18px;
+    border-radius: 5px;
+    font-weight: 500;
+    min-height: 20px;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+    /* デフォルトは非表示 or 透明にしておくことも可能 */
+    /* background-color: transparent; border-color: transparent; */
+  }
+
+  /* 各種メッセージの色 (変更なし) */
+  .success {
+    background-color: #d1e7dd;
+    border-color: #badbcc;
+    color: #0f5132;
+  }
+
+  .error {
+    background-color: #f8d7da;
+    border-color: #f5c2c7;
+    color: #842029;
+  }
+
+  .duplicate {
+    background-color: #fff3cd;
+    border-color: #ffecb5;
+    color: #664d03;
+  }
+
+  .info {
+    background-color: #cff4fc;
+    border-color: #b6effb;
+    color: #055160;
+  }
+
+  /* === フローティングアクションボタン (FAB) === */
+  .fab {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    width: 60px;
+    height: 60px;
+    /* ★ メインのアクセントカラー (ピンク系) */
+    background-color: #EA4AAA;
+    /* Officialっぽいピンク */
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 30px;
+    font-weight: bold;
+    box-shadow: 0 6px 10px 0 rgba(0, 0, 0, .14), 0 1px 18px 0 rgba(0, 0, 0, .12), 0 3px 5px -1px rgba(0, 0, 0, .2);
+    cursor: pointer;
+    outline: none;
+    transition: background-color 0.2s ease, transform 0.15s ease-out, box-shadow 0.15s ease;
+    z-index: 1050;
+    user-select: none;
+    -webkit-user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* 中央揃え */
+  }
+
+  .fab:hover {
+    background-color: #E0309A;
+    /* 少し濃く */
+    box-shadow: 0 8px 15px 0 rgba(0, 0, 0, .16), 0 3px 18px 0 rgba(0, 0, 0, .14), 0 5px 7px -1px rgba(0, 0, 0, .22);
+    transform: translateY(-2px);
+  }
+
+  .fab:active {
+    background-color: #C71A81;
+    /* さらに濃く */
+    transform: translateY(0);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  }
+
+  /* 処理中スピナー (変更なし) */
+  .fab.loading {
+    background-color: #adb5bd;
+    cursor: progress;
+    color: transparent;
+  }
+
+  .fab.loading::after {
+    /* ... スピナー定義 ... */
+    content: '';
+    box-sizing: border-box;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 30px;
+    height: 30px;
+    margin-top: -15px;
+    margin-left: -15px;
+    border-radius: 50%;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #ffffff;
+    animation: fab-spin 1s linear infinite;
+  }
+
+  @keyframes fab-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* === カードスリーブ & カードアイテム === */
+  #cardSleeve {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    /* 変更なし */
+    gap: 16px;
+    /* 変更なし */
+    padding: 10px 0;
+  }
+
+  .card-item {
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    /* 少し角丸 */
+    background-color: #ffffff;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+    transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .card-item:hover {
+    transform: translateY(-4px) scale(1.02);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
+  }
+
+  /* カード画像 */
+  .card-item img {
+    display: block;
+    width: 100%;
+    height: auto;
+    /* 画像の上に角丸がかかるように、下の角丸をなくす */
+    /* border-top-left-radius: 5px; border-top-right-radius: 5px; */
+    background-color: #f0f0f0;
+    min-height: 100px;
+    /* アスペクト比を固定する場合 (カードの比率に合わせて調整) */
+    aspect-ratio: 63 / 88;
+    /* 一般的なトレカの比率に近い例 */
+    object-fit: cover;
+    /* アスペクト比固定時の表示方法 */
+  }
+
+  /* カード情報エリア */
+  .card-info {
+    padding: 10px;
+    font-size: 13px;
+    text-align: center;
+    margin-top: auto;
+    /* 画像の下に配置 */
+    border-top: 1px solid #eee;
+  }
+
+  .card-info p {
+    margin: 4px 0;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .card-id {
+    font-weight: 600;
+    color: #343a40;
+  }
+
+  .card-name {
+    color: #495057;
+  }
+
+  .card-char {
+    color: #6c757d;
+    font-size: 0.9em;
+  }
+
+  .card-rarity {
+    color: #6c757d;
+    font-size: 0.85em;
+  }
+
+  /* モーダル背景 */
+  .modal {
+    display: none;
+    /* 初期状態では非表示 */
+    position: fixed;
+    /* 画面に固定 */
+    z-index: 1100;
+    /* FABより手前に */
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    /* スクロール可能に */
+    background-color: rgba(0, 0, 0, 0.8);
+    /* 半透明の黒背景 */
+    /* フェードインアニメーション (任意) */
+    animation-name: fadeIn;
+    animation-duration: 0.3s;
+  }
+
+  /* モーダル内のコンテンツ (画像) */
+  .modal-content {
+    margin: auto;
+    /* 上下左右中央に */
+    display: block;
+    max-width: 80%;
+    /* 画面幅の80%まで */
+    max-height: 85vh;
+    /* 画面高さの85%まで */
+    /* 画像表示アニメーション (任意) */
+    animation-name: zoomIn;
+    animation-duration: 0.3s;
+  }
+
+  /* 閉じるボタン */
+  .modal-close {
+    position: absolute;
+    top: 15px;
+    right: 35px;
+    color: #f1f1f1;
+    font-size: 40px;
+    font-weight: bold;
+    transition: 0.3s;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .modal-close:hover,
+  .modal-close:focus {
+    color: #bbb;
+    text-decoration: none;
+  }
+
+  /* アニメーション定義 (任意) */
+  @keyframes zoomIn {
+    from {
+      transform: scale(0)
+    }
+
+    to {
+      transform: scale(1)
+    }
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0
+    }
+
+    to {
+      opacity: 1
+    }
+  }
+
+  /* ★★★ ここまで追加 ★★★ */
+</style>

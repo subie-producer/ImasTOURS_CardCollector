@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <base target="_top">
+    <title>TOURS Card Collector</title>
+    <?!= include('stylesheet'); ?>
+</head>
+
+<body>
+    <h1>TOURS Card Collector</h1>
+    <!-- 
+    <div id="upload-section">
+        <h2>カード画像をアップロード</h2>
+        <p>Microsoft Lens等で切り取ったカード画像を選択してください。</p>
+        <input type="file" id="imageFile" accept="image/*">
+        <div style="margin-top: 10px;">
+            <img id="preview" src="#" alt="画像プレビュー"
+                style="max-width: 200px; max-height: 200px; display: none; vertical-align: bottom; border: 1px solid #ccc; padding: 2px;">
+        </div>
+        <button id="uploadButton" disabled style="margin-top: 10px;">アップロードして登録</button>
+    </div> -->
+
+
+    <hr>
+    <div id="controls"
+        style="margin-bottom: 15px; padding: 10px; background-color: #f1f3f5; border-radius: 5px; border: 1px solid #dee2e6; display: flex; align-items: center; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <label for="sortSelect" style="margin-right: 5px; font-weight: bold;">並び替え:</label>
+            <select id="sortSelect" style="padding: 5px;">
+                <option value="timestamp_desc" selected>登録日時 (新しい順)</option>
+                <option value="timestamp_asc">登録日時 (古い順)</option>
+                <option value="cardId_asc">カードID (昇順)</option>
+                <option value="rarity_desc">レアリティ (高い順)</option>
+                <option value="rarity_asc">レアリティ (低い順)</option>
+                <option value="cardName_asc">カード名 (昇順)</option>
+                <option value="characterName_asc">キャラクター名 (昇順)</option>
+            </select>
+        </div>
+        <div>
+            <label for="searchInput" style="margin-right: 5px; font-weight: bold;">検索:</label>
+            <input type="text" id="searchInput" placeholder="ID, 名前, キャラ名で検索..."
+                style="padding: 6px; width: 200px; border: 1px solid #ced4da; border-radius: 3px;">
+        </div>
+    </div>
+    <div id="messageArea" style="margin-top: 15px; min-height: 40px;">
+    </div>
+
+    <div id="sleeve-section">
+        <h2>マイカードスリーブ (<span id="cardCount">?</span> 枚)</h2>
+        <div id="cardSleeve">
+            <p>まだカードが登録されていません。</p>
+        </div>
+    </div>
+    <button id="fabUpload" class="fab" title="新しいカードを登録（画像を選択）">+</button>
+    <input type="file" id="imageFile" accept="image/*" style="display: none;" multiple>
+    <div id="imageModal" class="modal">
+        <span class="modal-close" title="閉じる">&times;</span>
+        <img class="modal-content" id="modalImage">
+    </div>
+    <?!= include('javascript'); ?>
+</body>
+
+</html>

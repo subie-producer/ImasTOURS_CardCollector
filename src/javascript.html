@@ -1,0 +1,461 @@
+<script>
+    // === グローバル変数・要素取得 ===
+    const imageFileElement = document.getElementById('imageFile');   // 非表示input
+    const messageAreaElement = document.getElementById('messageArea'); // メッセージ表示エリア
+    const cardSleeveElement = document.getElementById('cardSleeve');  // カード表示エリア
+    const cardCountElement = document.getElementById('cardCount');   // カード枚数表示
+    const sortSelectElement = document.getElementById('sortSelect');  // 並び替え選択
+    const searchInputElement = document.getElementById('searchInput'); // 検索入力
+    const fabUploadElement = document.getElementById('fabUpload');     // FABボタン
+    const modalElement = document.getElementById('imageModal');      // 画像拡大モーダル
+    const modalImageElement = document.getElementById('modalImage');   // モーダル内画像
+    const modalCloseButton = document.querySelector('.modal-close');  // モーダル閉じるボタン
+
+    const MAX_FILES = 12; // 最大選択枚数
+
+    let allCardsData = []; // 全カードデータを保持する配列
+    let commonErrorImageUrl = ''; // 共通エラー画像URLを保持する変数
+    let searchTimeout; // 検索入力のデバウンス用タイマー
+
+    // === イベントリスナー ===
+
+    // 並び替えselectの変更イベント
+    if (sortSelectElement) {
+        sortSelectElement.addEventListener('change', () => {
+            console.log(`Sort option changed to: ${sortSelectElement.value}`);
+            filterAndSortAndDisplayCards(); // フィルタリング＋ソート＋表示 を実行
+        });
+    } else { console.error("Sort select element (#sortSelect) not found."); }
+
+    // 検索入力欄の input イベント (デバウンス付き)
+    if (searchInputElement) {
+        searchInputElement.addEventListener('input', () => {
+            clearTimeout(searchTimeout); // 前のタイマーをクリア
+            searchTimeout = setTimeout(() => { // 300ms待ってから実行
+                console.log(`Search keyword: ${searchInputElement.value}`);
+                filterAndSortAndDisplayCards(); // フィルタリング＋ソート＋表示 を実行
+            }, 300); // 300ミリ秒の遅延
+        });
+    } else { console.error("Search input element (#searchInput) not found."); }
+
+    // FABクリック時の処理
+    if (fabUploadElement) {
+        fabUploadElement.addEventListener('click', () => {
+            if (!fabUploadElement.classList.contains('loading') && imageFileElement) {
+                console.log("FAB clicked, triggering file input.");
+                imageFileElement.click(); // 非表示のinput type=fileをクリック
+            }
+        });
+    } else { console.error("FAB upload element (#fabUpload) not found."); }
+
+    // ファイル選択 input の change イベント (複数ファイル対応)
+    if (imageFileElement) {
+        imageFileElement.addEventListener('change', (event) => {
+            const files = event.target.files; // FileList を取得
+            if (!files || files.length === 0) return; // ファイルが選択されなかった場合
+
+            clearMessage(); // ★ 操作開始時にメッセージをクリア
+
+            // 枚数チェック
+            if (files.length > MAX_FILES) {
+                showMessage(`一度に選択できるのは ${MAX_FILES} 枚までです。`, 'error');
+                event.target.value = null; return; // 選択をリセット
+            }
+
+            console.log(`${files.length} files selected.`);
+            setFabLoading(true); // ローディング開始
+            showMessage(`${files.length} 枚のカードを処理中... 時間がかかる場合があります。`, 'info');
+
+            // 各ファイルを読み込む Promise の配列を作成
+            const fileReadPromises = Array.from(files).map(file => {
+                return new Promise((resolve, reject) => {
+                    // 画像ファイルかチェック
+                    if (!file.type.startsWith('image/')) {
+                        console.warn(`Skipping non-image file: ${file.name}`);
+                        resolve(null); // 画像以外はスキップ
+                        return;
+                    }
+                    // FileReader準備
+                    const reader = new FileReader();
+                    // 読み込み完了時の処理
+                    reader.onloadend = () => {
+                        try {
+                            const base64Data = reader.result.split(',')[1]; // ヘッダー除去
+                            if (!base64Data) throw new Error('Base64データが空です');
+                            resolve({ imageData: base64Data, fileName: file.name }); // 成功データをresolve
+                        } catch (e) {
+                            console.error(`Error reading file ${file.name}:`, e);
+                            reject(new Error(`読込エラー: ${file.name}`)); // 失敗
+                        }
+                    };
+                    // 読み込みエラー時の処理
+                    reader.onerror = (e) => {
+                        console.error(`FileReader error for ${file.name}:`, reader.error);
+                        reject(new Error(`読込エラー: ${file.name}`)); // 失敗
+                    };
+                    // 読み込み開始
+                    reader.readAsDataURL(file);
+                });
+            });
+
+            // 全てのファイルの読み込み完了を待つ
+            Promise.all(fileReadPromises)
+                .then(results => {
+                    // 読み込み成功したデータ (nullでないもの) のみ抽出
+                    const validFilesData = results.filter(r => r !== null);
+
+                    if (validFilesData.length === 0) {
+                        showMessage('有効な画像ファイルが選択されませんでした。', 'error');
+                        setFabLoading(false); return; // 処理終了
+                    }
+
+                    console.log(`Sending ${validFilesData.length} files to server...`);
+                    // サーバーサイド関数呼び出し (ファイルデータ配列を渡す)
+                    google.script.run
+                        .withSuccessHandler(handleMultiServerResponse) // 複数結果用ハンドラ
+                        .withFailureHandler(handleServerError)       // 共通エラーハンドラ
+                        .processMultipleImages(validFilesData);     // 複数処理用サーバー関数
+                })
+                .catch(error => { // Promise.all 自体のエラー (ファイル読み込み中のエラー)
+                    console.error("Error processing files before sending:", error);
+                    showMessage(`ファイル準備中にエラー: ${error.message}`, 'error');
+                    setFabLoading(false); // ローディング解除
+                });
+
+            // input の value をリセットして同じファイルを連続選択可能にする
+            event.target.value = null;
+        });
+    } else { console.error("Image file input element (#imageFile) not found."); }
+
+    // === サーバー応答処理 ===
+
+    /**
+     * 複数処理結果を受け取るハンドラ
+     * @param {Array<object>} results 各ファイルの処理結果の配列
+     */
+    function handleMultiServerResponse(results) {
+        console.log('Server multi-response:', results);
+        setFabLoading(false); // ローディング解除
+
+        if (Array.isArray(results)) {
+            let successCount = 0, duplicateCount = 0, errorCount = 0;
+            let errorDetails = []; // エラー詳細を格納
+            let duplicateCardIds = []; // ★ 重複したカードIDを格納する配列
+
+            // 結果を集計
+            results.forEach(result => {
+                if (result?.status === 'success') successCount++;
+                else if (result?.status === 'duplicate') {
+                    duplicateCount++;
+                    // ★ cardId が結果に含まれていれば、重複IDリストに追加
+                    if (result.cardId) {
+                        // 同じIDが複数回重複してもリストには追加する
+                        duplicateCardIds.push(result.cardId);
+                    } else {
+                        console.warn("Duplicate result missing cardId:", result);
+                    }
+                } else {
+                    errorCount++;
+                    // エラー詳細を記録 (ファイル名とメッセージ)
+                    errorDetails.push(`[${result?.originalFileName || '不明'}] ${result?.message || '不明なエラー'}`);
+                }
+            });
+
+            // 結果メッセージを作成
+            let summaryMessage = `${results.length}枚処理完了: 新規 ${successCount}枚`;
+
+            // ★ 重複があればメッセージに追加
+            if (duplicateCount > 0) {
+                summaryMessage += `, 重複 ${duplicateCount}枚`;
+                // ★ 重複IDリストが存在すれば、カッコ書きで表示 (重複を削除して表示する場合: [...new Set(duplicateCardIds)])
+                if (duplicateCardIds.length > 0) {
+                    summaryMessage += ` (ID: ${duplicateCardIds.join(', ')})`; // カンマ区切りでリスト表示
+                }
+            }
+
+            // エラーがあればメッセージに追加
+            if (errorCount > 0) {
+                summaryMessage += `, エラー ${errorCount}枚`;
+                console.error("--- カード処理エラー詳細 ---");
+                errorDetails.forEach(detail => console.error(detail));
+                console.error("--------------------------");
+            }
+
+            // メッセージエリアに表示 (ステータスに応じて色分け)
+            if (errorCount > 0) {
+                showMessage(summaryMessage, 'error');
+            } else if (duplicateCount > 0 && successCount === 0) {
+                // 新規登録がなく重複のみの場合
+                showMessage(summaryMessage, 'duplicate');
+            } else {
+                // 成功（新規登録あり or エラー/重複なし）
+                showMessage(summaryMessage, 'success');
+            }
+            // 処理完了後、カードリストを再読み込み
+            loadCardSleeve(false);
+        } else {
+            // 予期しない応答形式
+            console.error("Unexpected response format from server:", results);
+            showMessage('サーバーから予期しない形式の応答がありました。', 'error');
+        }
+    }
+
+    /**
+     * サーバー通信エラー時の処理
+     * @param {Error} error エラーオブジェクト
+     */
+    function handleServerError(error) {
+        console.error('Server communication error:', error);
+        setFabLoading(false); // ローディング解除
+        showMessage(`サーバー通信エラーが発生しました: ${error.message}`, 'error');
+    }
+
+    /**
+     * FABのローディング状態を設定/解除する
+     * @param {boolean} isLoading ローディング状態にするかどうか
+     */
+    function setFabLoading(isLoading) {
+        if (fabUploadElement) {
+            if (isLoading) {
+                fabUploadElement.classList.add('loading');
+                fabUploadElement.disabled = true;
+            } else {
+                fabUploadElement.classList.remove('loading');
+                fabUploadElement.disabled = false;
+            }
+        }
+    }
+
+    // === メッセージ表示、クリア関数 ===
+
+    /**
+     * メッセージ表示関数
+     * @param {string} msg 表示するメッセージ
+     * @param {string} type メッセージの種類 (success, error, duplicate, info)
+     */
+    function showMessage(msg, type) {
+        if (messageAreaElement) {
+            messageAreaElement.textContent = msg; // textContent を使用
+            messageAreaElement.className = type; // スタイル適用用のクラス名を設定
+        }
+    }
+
+    /**
+     * メッセージクリア関数
+     */
+    function clearMessage() {
+        if (messageAreaElement) {
+            messageAreaElement.textContent = '';
+            messageAreaElement.className = '';
+        }
+    }
+
+    // === カードスリーブ関連 ===
+
+    /**
+     * サーバーから全カードデータを取得し、表示処理をトリガーする
+     */
+    function loadCardSleeve(showLoadingMsg = true) {
+        if (!cardSleeveElement) { console.error("Card sleeve element not found."); return; }
+        // カードスリーブ自体には常に「読み込み中」テキストを表示
+        cardSleeveElement.innerHTML = '<p>カードリストを読み込み中...</p>';
+
+        // ★ 引数に応じて messageArea に「読み込み中」を表示
+        if (showLoadingMsg) {
+            showMessage('カードリストを読み込み中...', 'info');
+        }
+        google.script.run
+            .withSuccessHandler(handleCardDataLoadSuccess)
+            .withFailureHandler(handleLoadError)
+            .getRegisteredCards();
+    }
+
+    /**
+     * カードデータ取得成功時の処理
+     * @param {object} response サーバーからの応答
+     */
+    function handleCardDataLoadSuccess(response) {
+        if (response && response.status === 'success' && Array.isArray(response.cards)) {
+            allCardsData = response.cards; // 全データ更新
+            commonErrorImageUrl = response.commonErrorImageUrl || ''; // エラー画像URL更新
+            console.log(`Loaded ${allCardsData.length} cards data.`);
+            if (messageAreaElement && messageAreaElement.textContent === 'カードリストを読み込み中...') {
+                clearMessage();
+            }
+            filterAndSortAndDisplayCards(); // フィルタリング・ソートして表示
+        } else {
+            if (response && response.commonErrorImageUrl) commonErrorImageUrl = response.commonErrorImageUrl;
+            handleLoadError({ message: response.message || 'カードデータの取得に失敗しました。' });
+        }
+    }
+
+    /**
+     * 現在の検索・ソート条件でカードをフィルタリング・ソートし、表示する
+     */
+    function filterAndSortAndDisplayCards() {
+        if (!Array.isArray(allCardsData)) { return; }
+
+        // 1. フィルタリング
+        const keyword = searchInputElement ? searchInputElement.value.toLowerCase().trim() : '';
+        let filteredCards = keyword
+            ? allCardsData.filter(card => {
+                const cardId = (card?.cardId ?? '').toLowerCase();
+                const cardName = (card?.cardName ?? '').toLowerCase();
+                const characterName = (card?.characterName ?? '').toLowerCase();
+                return cardId.includes(keyword) || cardName.includes(keyword) || characterName.includes(keyword);
+            })
+            : allCardsData; // キーワードがなければ全件
+
+        // 2. ソート
+        const sortValue = sortSelectElement ? sortSelectElement.value : 'timestamp_desc';
+        const [sortBy, order] = sortValue.split('_');
+        const sortMultiplier = order === 'asc' ? 1 : -1;
+        const RARITY_ORDER = { 'N': 1, 'R': 2, 'SR': 3, 'SSR': 4 };
+
+        const sortedAndFilteredCards = [...filteredCards].sort((a, b) => {
+            let valA, valB;
+            switch (sortBy) {
+                case 'cardId':
+                    valA = a.cardId || ''; valB = b.cardId || '';
+                    return valA.localeCompare(valB) * sortMultiplier;
+                case 'rarity':
+                    valA = RARITY_ORDER[a.rarity] || 0; valB = RARITY_ORDER[b.rarity] || 0;
+                    if (valA === valB) return (a.cardId || '').localeCompare(b.cardId || '');
+                    return (valA - valB) * sortMultiplier;
+                case 'cardName':
+                    valA = a.cardName || ''; valB = b.cardName || '';
+                    return valA.localeCompare(valB) * sortMultiplier;
+                case 'characterName':
+                    valA = a.characterName || ''; valB = b.characterName || '';
+                    return valA.localeCompare(valB) * sortMultiplier;
+                case 'timestamp': default:
+                    valA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+                    valB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+                    if (valA === valB) return (a.cardId || '').localeCompare(b.cardId || '');
+                    return (valA - valB) * sortMultiplier;
+            }
+        });
+
+        // 3. 表示
+        displayCards(sortedAndFilteredCards); // 表示関数呼び出し
+    }
+
+    /**
+     * 渡されたカード配列を使ってHTML要素を生成し、スリーブに表示する
+     * @param {Array<object>} cards 表示するカードデータの配列 (フィルタリング・ソート済み)
+     */
+    function displayCards(cards) {
+        if (!cardSleeveElement) { return; } // 要素チェック
+        if (!cardCountElement) { console.warn("#cardCount element not found."); }
+
+        // 総枚数表示 (フィルタリング前の全枚数)
+        if (cardCountElement) cardCountElement.textContent = Array.isArray(allCardsData) ? allCardsData.length : '?';
+
+        // スリーブ要素クリア
+        while (cardSleeveElement.firstChild) { cardSleeveElement.removeChild(cardSleeveElement.firstChild); }
+
+        // 表示カードがない場合
+        if (!cards || cards.length === 0) {
+            const p = document.createElement('p');
+            p.textContent = (!allCardsData || allCardsData.length === 0) ? 'まだカードが登録されていません。' : '表示するカードがありません。';
+            cardSleeveElement.appendChild(p);
+            return; // 終了
+        }
+
+        // 各カード要素を生成して追加
+        cards.forEach(card => {
+            // 1. コンテナ (div.card-item)
+            const cardElement = document.createElement('div');
+            cardElement.className = 'card-item';
+            const tooltipParts = [
+                `ID: ${card.cardId || 'N/A'}`, `名前: ${card.cardName || 'N/A'}`, `キャラ: ${card.characterName || 'N/A'}`,
+                `レアリティ: ${card.rarity || 'N/A'}`, `タイプ: ${card.cardType || 'N/A'}`, `ファイル: ${card.fileName || 'N/A'}`,
+                `登録日時: ${card.timestamp && !isNaN(new Date(card.timestamp)) ? new Date(card.timestamp).toLocaleString() : 'N/A'}`
+            ];
+            cardElement.setAttribute('title', tooltipParts.join('\n'));
+
+            // 2. 画像 (img)
+            const imgElement = document.createElement('img');
+            imgElement.src = card.imageUrl || '';
+            imgElement.alt = card.cardName || card.cardId || 'Card image';
+            imgElement.loading = 'lazy';
+            imgElement.dataset.largeUrl = card.largeImageUrl || '';
+            imgElement.dataset.errorUrl = commonErrorImageUrl || '';
+            imgElement.onerror = function () {
+                this.onerror = null; this.src = this.dataset.errorUrl;
+                this.alt = `画像読込エラー: ${card.cardId || 'Unknown'}`;
+            };
+            imgElement.style.cursor = 'pointer';
+            imgElement.addEventListener('click', openModal);
+            cardElement.appendChild(imgElement);
+
+            // 3. 情報エリア (div.card-info)
+            const infoElement = document.createElement('div');
+            infoElement.className = 'card-info';
+
+            // 4. 各情報 (<p>)
+            const idElement = document.createElement('p'); idElement.className = 'card-id';
+            idElement.textContent = card.cardId || 'ID不明'; infoElement.appendChild(idElement);
+            if (card.cardName) { const el = document.createElement('p'); el.className = 'card-name'; el.textContent = card.cardName; infoElement.appendChild(el); }
+            if (card.characterName) { const el = document.createElement('p'); el.className = 'card-char'; el.textContent = card.characterName; infoElement.appendChild(el); }
+            if (card.rarity) { const el = document.createElement('p'); el.className = 'card-rarity'; el.textContent = `${card.rarity}${card.cardType ? ' / ' + card.cardType : ''}`; infoElement.appendChild(el); }
+
+            // 5. 情報エリアをカードに追加
+            cardElement.appendChild(infoElement);
+            // 6. カードをスリーブに追加
+            cardSleeveElement.appendChild(cardElement);
+        });
+    }
+
+    /**
+     * カードリスト読み込み失敗時の処理 (変更なし)
+     */
+    function handleLoadError(error) {
+        console.error('Failed to load card sleeve:', error);
+        if (cardSleeveElement) { cardSleeveElement.innerHTML = `<p style="color: red;">カードリスト読込エラー: ${error.message}</p>`; }
+        showMessage(`カードリスト読込エラー: ${error.message}`, 'error');
+    }
+
+    // === モーダル関連 ===
+    /**
+     * モーダルを開く (変更なし)
+     */
+    function openModal(event) {
+        const clickedImage = event.target;
+        const largeUrl = clickedImage.dataset.largeUrl;
+        const errorUrl = clickedImage.dataset.errorUrl; // エラーURLもdatasetから
+        if (!largeUrl || !modalElement || !modalImageElement) return;
+
+        modalImageElement.src = ''; // クリア
+        modalElement.style.display = "block";
+        modalImageElement.src = largeUrl; // 先にセット
+
+        modalImageElement.onload = () => { console.log("Enlarged image loaded."); };
+        modalImageElement.onerror = () => {
+            console.error("Failed to load enlarged image.");
+            modalImageElement.onload = null; modalImageElement.onerror = null;
+            modalImageElement.src = errorUrl || ''; // エラーURL設定
+            modalImageElement.alt = '拡大画像の読み込み失敗';
+        };
+    }
+    /**
+     * モーダルを閉じる (変更なし)
+     */
+    function closeModal() {
+        if (modalElement) {
+            modalElement.style.display = "none";
+            if (modalImageElement) modalImageElement.src = '';
+        }
+    }
+    // モーダルを閉じるイベントリスナー (変更なし)
+    if (modalElement) modalElement.addEventListener('click', (event) => { if (event.target === modalElement) closeModal(); });
+    if (modalCloseButton) modalCloseButton.addEventListener('click', closeModal);
+    document.addEventListener('keydown', (event) => { if (event.key === "Escape" && modalElement?.style.display === "block") closeModal(); });
+
+    // === ページ読み込み完了時の処理 ===
+    document.addEventListener('DOMContentLoaded', (event) => {
+        console.log('Card Collector Initialized. Loading card sleeve...');
+        loadCardSleeve(); // 初期読み込み
+    });
+
+</script>
