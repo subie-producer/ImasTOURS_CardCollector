@@ -148,13 +148,13 @@ THE IDOLM@STER TOURS (アイマスTOURS) のアーケードゲームカードを
 4.  「**デプロイ**」をクリック。
 5.  **承認の実行:** 許可を求められたら「**アクセスを承認**」をクリックし、アカウントを選択します。「確認されていません」画面が出たら「**詳細**」→「**〇〇（プロジェクト名）に移動（安全ではないページ）**」→「**許可**」と進みます。（これは自作アプリでは通常の流れです）
     ![image](https://github.com/user-attachments/assets/5db6d95d-598e-4e22-a20c-b2591bdd8a08)
-    ![image](https://github.com/user-attachments/assets/51f37b32-b5b6-487c-82e2-a6d26ce95fb5)
+    ![image](https://github.com/user-attachments/assets/3fcb9189-91c7-4693-bb68-ad593b6193d9)
     ![image](https://github.com/user-attachments/assets/7a3aacf4-1d7a-416f-bbc9-9f4ff469a0ee)
 
-6.  デプロイが完了したら、「**ウェブアプリ URL**」をコピーし、ブラウザのブックマークなどに保存します。これがアプリのアドレスです。
+7.  デプロイが完了したら、「**ウェブアプリ URL**」をコピーし、ブラウザのブックマークなどに保存します。これがアプリのアドレスです。
     ![image](https://github.com/user-attachments/assets/ab6c6e3e-2335-4edb-8279-09515a4f110a)
 
-7.  「完了」をクリックします。
+8.  「完了」をクリックします。
 
 これでセットアップは完了です！ ブックマークしたURLを開いてアプリを利用できます。
 
